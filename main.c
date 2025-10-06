@@ -55,16 +55,17 @@
  * 7. Loop Unrolling
 */
 #include <stdio.h>
-
+#include <stdlib.h>
 
 int main() {
-    char* fileName;
+    const char* fileName;
     printf("Entire path to input file: \n");
 
     scanf("%s", fileName);
-    FILE* file = fopen(file, "r");
+    FILE* file = fopen(fileName, "r");
     if (!file) {
         printf("Error opening file\n");
+        printf(ferror(file));
         return -1;
     }
     
@@ -88,5 +89,23 @@ int main() {
     fclose(file);
 
     int* bp = 0; // Buffer pointer
-    
+    while (*bp) {
+        // Skip whitespace
+        if (*bp == ' ' || *bp == '\n' || *bp == '\t') {
+            bp++;
+            continue;
+        }
+        else if (*bp == '/') {
+            // Handle comments
+            if (*(bp + 1) == '/') {
+                // Single-line comment
+                while (*bp && *bp != '\n') bp++;
+            } else if (*(bp + 1) == '*') {
+                // Multi-line comment
+                bp += 2; // Skip '/*'
+                while (*bp && !(*bp == '*' && *(bp + 1) == '/')) bp++;
+                if (*bp) bp += 2; // Skip '*/'
+            } 
+        } 
+    }
 }
