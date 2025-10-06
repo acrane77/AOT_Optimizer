@@ -65,7 +65,6 @@ int main() {
     FILE* file = fopen(fileName, "r");
     if (!file) {
         printf("Error opening file\n");
-        printf(ferror(file));
         return -1;
     }
     
@@ -84,8 +83,6 @@ int main() {
 
     size_t bytes = fread(buf, 1, fileSize, file);
     buf[bytes] = '\0'; // Null-terminate the buffer
-    printf("File contents:\n%s\n", buf);
-    free(buf);
     fclose(file);
 
     int* bp = 0; // Buffer pointer
@@ -97,15 +94,27 @@ int main() {
         }
         else if (*bp == '/') {
             // Handle comments
-            if (*(bp + 1) == '/') {
+            if (*(bp + 1) && *(bp + 1) == '/') {
                 // Single-line comment
                 while (*bp && *bp != '\n') bp++;
-            } else if (*(bp + 1) == '*') {
+                continue;
+            } 
+            else if (*(bp + 1) && *(bp + 1) == '*') {
                 // Multi-line comment
                 bp += 2; // Skip '/*'
                 while (*bp && !(*bp == '*' && *(bp + 1) == '/')) bp++;
                 if (*bp) bp += 2; // Skip '*/'
+                continue;
             } 
+            else {
+                // Division operator
+                bp++;
+            }
         } 
+        else {
+            // Regular character
+            bp++;
+        }
     }
+    free(buf);
 }
