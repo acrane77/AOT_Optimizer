@@ -54,7 +54,39 @@
  * 6. Induction Variable Elimination
  * 7. Loop Unrolling
 */
+#include <stdio.h>
+
 
 int main() {
+    char* fileName;
+    printf("Entire path to input file: \n");
 
+    scanf("%s", fileName);
+    FILE* file = fopen(file, "r");
+    if (!file) {
+        printf("Error opening file\n");
+        return -1;
+    }
+    
+    // Get length of file for buffer allocation
+    fseek(file, 0, SEEK_END);
+    long fileSize = ftell(file) + 1;
+    rewind(file);
+
+    // Allocate buffer for file contents
+    char* buf = malloc(fileSize + 1);
+    if (!buf) {
+        printf("Memory allocation failed\n");
+        fclose(file);
+        return -1;
+    }
+
+    size_t bytes = fread(buf, 1, fileSize, file);
+    buf[bytes] = '\0'; // Null-terminate the buffer
+    printf("File contents:\n%s\n", buf);
+    free(buf);
+    fclose(file);
+
+    int* bp = 0; // Buffer pointer
+    
 }
