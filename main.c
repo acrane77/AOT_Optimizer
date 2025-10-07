@@ -55,8 +55,6 @@
  * 7. Loop Unrolling
 */
 
-// Switching github accounts, quick check to see if it worked
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -82,6 +80,9 @@ void emitToken(struct Token* token) {
     }
     else if (token->type == END_OF_FILE) {
         printf("END_OF_FILE\n");
+    }
+    else if (token->type == IDENTIFIER) {
+        printf("IDENTIFIER: %.*s\n", token->length, token->lexeme);
     }
 }
 
@@ -141,24 +142,38 @@ int main() {
             }
         } 
         else {
-            // Regular character
-            char* start = bp;
-            int startCol = col;
-            while (isdigit(*bp)) {
-                bp++; col++;
-            }
-            if (start != bp) {
-                char* end = bp;
-                int length = end - start;
-                char* cur = start;
+            // Any alphanumeric character
+            if (isdigit(*bp)) { // Integer literal
+                char* start = bp;
+                int startCol = col;
 
-                int tokenValue = 0;
-                while (cur < end) {
-                    tokenValue = tokenValue * 10 + (*cur - '0');
-                    cur++;
+                while (isdigit(*bp)) { bp++; col++; } // Find end of integer literal
+                if (start != bp) {
+                    char* end = bp;
+                    int length = end - start;
+                    char* cur = start;
+
+                    int tokenValue = 0;
+                    while (cur < end) { // Transform string to int
+                        tokenValue = tokenValue * 10 + (*cur - '0');
+                        cur++;
+                    }
+                    struct Token intToken = { .type = INT_LITERAL, .line = line, .col = startCol, .val = tokenValue, .lexeme = start, .length = length };
+                    emitToken(&intToken); // Emit token of this type
                 }
-                struct Token intToken = { .type = INT_LITERAL, .line = line, .col = startCol, .val = tokenValue, .lexeme = start, .length = length };
-                emitToken(&intToken);
+            }
+            else if (isalnum(*bp) || *bp == '_') {
+                char* start = bp;
+                int startCol = col;
+
+                while (isalnum(*bp) || *bp == '_') { bp++; col++; } // Find end of identifier
+
+                if (start != bp) {
+                    char* end = bp;
+                    int length = end - start;
+                    struct Token idToken = { .type = IDENTIFIER, .line = line, .col = startCol, .lexeme = start, .length = length};
+                    emitToken(&idToken); // Emit token of this type
+                }
             }
             else { bp++; col++; }
         }
