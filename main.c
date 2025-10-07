@@ -58,11 +58,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <string.h>
+
+static const char* validDoubleOps[] = { "==", "<=", ">=", "!=", "&&", "||", "++", "--", "+=", "-=", "*=", "%=", "&=", "|=", "^=", "<<", ">>" };
+static const char validSingleOps[] = "+-*%=<>!&|~^(){}[];,";
 
 enum TokenType {
     INT_LITERAL,
     IDENTIFIER,
     OPERATOR,
+    DELIMITER,
     END_OF_FILE
 };
 
@@ -78,19 +83,39 @@ void emitToken(struct Token* token) {
     if (token->type == INT_LITERAL) {
         printf("INT_LITERAL: %d\n", token->val);
     }
-    else if (token->type == END_OF_FILE) {
-        printf("END_OF_FILE\n");
-    }
     else if (token->type == IDENTIFIER) {
         printf("IDENTIFIER: %.*s\n", token->length, token->lexeme);
     }
+    else if (token->type == OPERATOR) {
+        printf("OPERATOR: %.*s\n", token->length, token->lexeme);
+    }
+    else if (token->type == DELIMITER) {
+        printf("DELIMITER: %.*s\n", token->length, token->lexeme);
+    }
+    else if (token->type == END_OF_FILE) {
+        printf("END_OF_FILE\n");
+    }
+}
+
+int strInArray(const char* str, const char* arr[], int arrSize) {
+    for (int i = 0; i < arrSize; i++) {
+        if (strcmp(str, arr[i]) == 0) return 1;
+    }
+    return 0;
+}
+
+int charInArray(char c, const char* arr, int arrSize) {
+    for (int i = 0; i < arrSize; i++) {
+        if (c == arr[i]) return 1;
+    }
+    return 0;
 }
 
 int main() {
-    const char fileName[256];
+    char fileName[256];
     printf("Entire path to input file: \n");
 
-    scanf("%s", fileName);
+    scanf("%255s", fileName);
     FILE* file = fopen(fileName, "r");
     if (!file) {
         printf("Error opening file\n");
@@ -101,6 +126,12 @@ int main() {
     fseek(file, 0, SEEK_END);
     long fileSize = ftell(file);
     rewind(file);
+
+    if (fileSize <= 0) {
+        printf("Empty file or error reading file size\n");
+        fclose(file);
+        return -1;
+    }
 
     // Allocate buffer for file contents
     char* buf = malloc(fileSize + 1);
@@ -118,7 +149,7 @@ int main() {
     char* bp = buf; // Buffer pointer
     while (*bp) {
         if (*bp == ' ' || *bp == '\t' || *bp == '\n') {
-            if (*bp == '\n') { line++, col=0; }
+            if (*bp == '\n') { line++; bp++; col=0; continue; }
             bp++; col++;
             continue;
         }
@@ -132,17 +163,34 @@ int main() {
             else if (*(bp + 1) && *(bp + 1) == '*') {
                 // Multi-line comment
                 bp += 2; col+=2; // Skip '/*'
-                while (*bp && !(*bp == '*' && *(bp + 1) == '/')) { bp++; col++; if (*bp == '\n') line++, col=0; }
+                if (*bp == '\0') { // Unterminated comment
+                    printf("Error: Unterminated comment\n");
+                    free(buf);
+                    return -1;
+                }
+                while (*bp && *(bp+1) && !(*bp == '*'  && *(bp + 1) == '/')) { 
+                    bp++; col++;  
+                    if (*bp == '\n') { line++; col=0; }
+                }
                 if (*bp) { bp += 2; col+=2; } // Skip '*/'
                 continue;
             } 
             else {
                 // Division operator
-                bp++; col++;
+                if (*(bp + 1) && *(bp + 1) == '=') { // '/=' operator
+                    struct Token opToken = { .type = OPERATOR, .line = line, .col = col, .lexeme = bp, .length = 2 };
+                    emitToken(&opToken); // Emit division-equals operator token
+                    bp += 2; col += 2;
+                }
+                else {
+                    struct Token opToken = { .type = OPERATOR, .line = line, .col = col, .lexeme = bp, .length = 1 };
+                    emitToken(&opToken); // Emit division operator token
+                    bp++; col++;
+                }
             }
         } 
         else {
-            // Any alphanumeric character
+            // Any numeric character
             if (isdigit(*bp)) { // Integer literal
                 char* start = bp;
                 int startCol = col;
@@ -162,7 +210,7 @@ int main() {
                     emitToken(&intToken); // Emit token of this type
                 }
             }
-            else if (isalnum(*bp) || *bp == '_') {
+            else if (isalpha(*bp) || *bp == '_') { // Any alphanumeric character or underscore
                 char* start = bp;
                 int startCol = col;
 
@@ -173,6 +221,38 @@ int main() {
                     int length = end - start;
                     struct Token idToken = { .type = IDENTIFIER, .line = line, .col = startCol, .lexeme = start, .length = length};
                     emitToken(&idToken); // Emit token of this type
+                }
+            }
+            else if (charInArray(*bp, validSingleOps, 20)) { // Operator or Delimiter
+                switch (*bp) {
+                    case '+': case '-': case '*': case '%': case '=': case '<': case '>': case '!': case '&': case '|': case '^': case '~': {
+                        int startCol = col;
+                        char* start = bp;
+                        
+                        if (*(bp+1)) { // Check for two-char operators
+                            char pair[3] = { *bp, *(bp + 1), '\0' }; // two-char operator check
+                            if (strInArray(pair, validDoubleOps, 17)) {
+                                bp += 2; col += 2;
+                                struct Token opToken = { .type = OPERATOR, .line = line, .col = startCol, .lexeme = start, .length = 2 };
+                                emitToken(&opToken); // Emit double-operator token
+                                break;
+                            }
+                        } 
+                        // Single-char operator
+                        bp++; col++;
+                        struct Token opToken = { .type = OPERATOR, .line = line, .col = startCol, .lexeme = start, .length = 1 };
+                        emitToken(&opToken); // Emit operator token
+                        break;
+                    }
+                    case '(': case ')': case '{': case '}': case '[': case ']': case ';': case ',': {
+                        struct Token delToken = { .type = DELIMITER, .line = line, .col = col, .lexeme = bp, .length = 1 };
+                        emitToken(&delToken); // Emit delimiter token
+                        bp++; col++;
+                        break;
+                    }
+                    default:
+                        bp++; col++; // Temporary unused character handling
+                        break;
                 }
             }
             else { bp++; col++; }
