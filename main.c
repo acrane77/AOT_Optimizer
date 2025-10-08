@@ -70,7 +70,7 @@ enum TokenType {
     IDENTIFIER,
     OPERATOR,
     DELIMITER,
-    EMPTY_TOKEN,
+    EMPTY,
     END_OF_FILE
 };
 
@@ -94,7 +94,7 @@ struct Token scanIdentifier(char** bpPtr, int* colPtr, int line) {
         struct Token idToken = { .type = IDENTIFIER, .line = line, .col = startCol, .lexeme = start, .length = length};
         return idToken;
     }
-    struct Token emptyToken = { .type = EMPTY_TOKEN, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0 };
+    struct Token emptyToken = { .type = EMPTY, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0 };
     return emptyToken; // No identifier found
 }
 
@@ -123,7 +123,7 @@ struct Token scanOpDelim(char** bpPtr, int* colPtr, int line) {
             return delToken;
         }
         default:
-            struct Token emptyToken = { .type = EMPTY_TOKEN, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0 };
+            struct Token emptyToken = { .type = EMPTY, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0 };
             return emptyToken; // Unknown character
     }
 }
@@ -146,7 +146,7 @@ struct Token scanIntLiteral(char** bpPtr, int* colPtr, int line) {
         struct Token intToken = { .type = INT_LITERAL, .line = line, .col = startCol, .val = tokenValue, .lexeme = start, .length = length };
         return intToken;
     }
-    struct Token emptyToken = { .type = EMPTY_TOKEN, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0 };
+    struct Token emptyToken = { .type = EMPTY, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0 };
     return emptyToken; // No integer literal found
 }
 
