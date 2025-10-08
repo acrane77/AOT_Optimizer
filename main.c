@@ -62,12 +62,15 @@
 
 static const char* validDoubleOps[] = { "==", "<=", ">=", "!=", "&&", "||", "++", "--", "+=", "-=", "*=", "%=", "&=", "|=", "^=", "<<", ">>" };
 static const char validSingleOps[] = "+-*%=<>!&|~^(){}[];,";
+int strInArray(const char* str, const char* arr[], int arrSize);
+int charInArray(char c, const char* arr, int arrSize);
 
 enum TokenType {
     INT_LITERAL,
     IDENTIFIER,
     OPERATOR,
     DELIMITER,
+    EMPTY_TOKEN,
     END_OF_FILE
 };
 
@@ -78,6 +81,74 @@ struct Token {
     int line, col;
     int length;
 };
+
+struct Token scanIdentifier(char** bpPtr, int* colPtr, int line) {
+    char* start = *bpPtr;
+    int startCol = *colPtr;
+
+    while (isalnum(**bpPtr) || **bpPtr == '_') { (*bpPtr)++; (*colPtr)++; } // Find end of identifier
+
+    if (start != *bpPtr) {
+        char* end = *bpPtr;
+        int length = end - start;
+        struct Token idToken = { .type = IDENTIFIER, .line = line, .col = startCol, .lexeme = start, .length = length};
+        return idToken;
+    }
+    struct Token emptyToken = { .type = EMPTY_TOKEN, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0 };
+    return emptyToken; // No identifier found
+}
+
+struct Token scanOpDelim(char** bpPtr, int* colPtr, int line) {
+    switch (**bpPtr) {
+        case '+': case '-': case '*': case '%': case '=': case '<': case '>': case '!': case '&': case '|': case '^': case '~': {
+            int startCol = *colPtr;
+            char* start = *bpPtr;
+            
+            if (*(*(bpPtr)+1)) { // Check for two-char operators
+                char pair[3] = { **bpPtr, *((*bpPtr) + 1), '\0' }; // two-char operator check
+                if (strInArray(pair, validDoubleOps, 17)) {
+                    (*bpPtr) += 2; (*colPtr) += 2;
+                    struct Token opToken = { .type = OPERATOR, .line = line, .col = startCol, .lexeme = start, .length = 2 };
+                    return opToken;
+                }
+            } 
+            // Single-char operator
+            (*bpPtr)++; (*colPtr)++;
+            struct Token opToken = { .type = OPERATOR, .line = line, .col = startCol, .lexeme = start, .length = 1 };
+            return opToken;
+        }
+        case '(': case ')': case '{': case '}': case '[': case ']': case ';': case ',': {
+            struct Token delToken = { .type = DELIMITER, .line = line, .col = *colPtr, .lexeme = *bpPtr, .length = 1 };
+            (*bpPtr)++; (*colPtr)++;
+            return delToken;
+        }
+        default:
+            struct Token emptyToken = { .type = EMPTY_TOKEN, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0 };
+            return emptyToken; // Unknown character
+    }
+}
+
+struct Token scanIntLiteral(char** bpPtr, int* colPtr, int line) {
+    char* start = *bpPtr;
+    int startCol = *colPtr;
+
+    while (isdigit(**bpPtr)) { (*bpPtr)++; (*colPtr)++; } // Find end of integer literal
+    if (start != *bpPtr) {
+        char* end = *bpPtr;
+        int length = end - start;
+        char* cur = start;
+
+        int tokenValue = 0;
+        while (cur < end) { // Transform string to int
+            tokenValue = tokenValue * 10 + (*cur - '0');
+            cur++;
+        }
+        struct Token intToken = { .type = INT_LITERAL, .line = line, .col = startCol, .val = tokenValue, .lexeme = start, .length = length };
+        return intToken;
+    }
+    struct Token emptyToken = { .type = EMPTY_TOKEN, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0 };
+    return emptyToken; // No integer literal found
+}
 
 void emitToken(struct Token* token) {
     if (token->type == INT_LITERAL) {
@@ -192,68 +263,20 @@ int main() {
         else {
             // Any numeric character
             if (isdigit(*bp)) { // Integer literal
-                char* start = bp;
-                int startCol = col;
-
-                while (isdigit(*bp)) { bp++; col++; } // Find end of integer literal
-                if (start != bp) {
-                    char* end = bp;
-                    int length = end - start;
-                    char* cur = start;
-
-                    int tokenValue = 0;
-                    while (cur < end) { // Transform string to int
-                        tokenValue = tokenValue * 10 + (*cur - '0');
-                        cur++;
-                    }
-                    struct Token intToken = { .type = INT_LITERAL, .line = line, .col = startCol, .val = tokenValue, .lexeme = start, .length = length };
-                    emitToken(&intToken); // Emit token of this type
-                }
+                struct Token intToken = scanIntLiteral(&bp, &col, line);
+                if (intToken.lexeme) emitToken(&intToken); // Emit integer literal token
             }
+
             else if (isalpha(*bp) || *bp == '_') { // Any alphanumeric character or underscore
-                char* start = bp;
-                int startCol = col;
-
-                while (isalnum(*bp) || *bp == '_') { bp++; col++; } // Find end of identifier
-
-                if (start != bp) {
-                    char* end = bp;
-                    int length = end - start;
-                    struct Token idToken = { .type = IDENTIFIER, .line = line, .col = startCol, .lexeme = start, .length = length};
-                    emitToken(&idToken); // Emit token of this type
-                }
+                struct Token idToken = scanIdentifier(&bp, &col, line);
+                if (idToken.lexeme) emitToken(&idToken); // Emit identifier token
             }
+
             else if (charInArray(*bp, validSingleOps, 20)) { // Operator or Delimiter
-                switch (*bp) {
-                    case '+': case '-': case '*': case '%': case '=': case '<': case '>': case '!': case '&': case '|': case '^': case '~': {
-                        int startCol = col;
-                        char* start = bp;
-                        
-                        if (*(bp+1)) { // Check for two-char operators
-                            char pair[3] = { *bp, *(bp + 1), '\0' }; // two-char operator check
-                            if (strInArray(pair, validDoubleOps, 17)) {
-                                bp += 2; col += 2;
-                                struct Token opToken = { .type = OPERATOR, .line = line, .col = startCol, .lexeme = start, .length = 2 };
-                                emitToken(&opToken); // Emit double-operator token
-                                break;
-                            }
-                        } 
-                        // Single-char operator
-                        bp++; col++;
-                        struct Token opToken = { .type = OPERATOR, .line = line, .col = startCol, .lexeme = start, .length = 1 };
-                        emitToken(&opToken); // Emit operator token
-                        break;
-                    }
-                    case '(': case ')': case '{': case '}': case '[': case ']': case ';': case ',': {
-                        struct Token delToken = { .type = DELIMITER, .line = line, .col = col, .lexeme = bp, .length = 1 };
-                        emitToken(&delToken); // Emit delimiter token
-                        bp++; col++;
-                        break;
-                    }
-                    default:
-                        bp++; col++; // Temporary unused character handling
-                        break;
-                }
+                struct Token opDelimToken = scanOpDelim(&bp, &col, line);
+                if (opDelimToken.type != END_OF_FILE) emitToken(&opDelimToken); // Emit operator or delimiter token
+
+                else { bp++; col++; } // Unknown character; skip
             }
             else { bp++; col++; }
         }
