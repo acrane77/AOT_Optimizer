@@ -1,6 +1,6 @@
 /* 
  * S-C (simple C) Optimizer Supports:
- * Basic scalar types (int, long, char, bool)
+ * Basic scalar types (int, float, char, str, bool)
  * Bitwise operations (&, |, ^, ~, <<, >>)
  * Arithmetic operations (+, -, *, /, %)
  * Boolean operations (&&, ||, !, ==, !=, <, >, <=, >=)
@@ -60,8 +60,10 @@
 #include <ctype.h>
 #include <string.h>
 
-static const char* validDoubleOps[] = { "==", "<=", ">=", "!=", "&&", "||", "++", "--", "+=", "-=", "*=", "%=", "&=", "|=", "^=", "<<", ">>" };
-static const char validSingleOps[] = "+-*%=<>!&|~^(){}[];,";
+static const char* validTripleOps[] = { "<<=", ">>=" }; int validTripleOpsSize = sizeof(validTripleOps)/ sizeof(validTripleOps[0]);
+static const char* validDoubleOps[] = { "==", "<=", ">=", "!=", "&&", "||", "++", "--", "+=", "-=", "*=", "%=", "&=", "|=", "^=", "<<", ">>", "->" }; int validDoubleOpsSize = sizeof(validDoubleOps)/sizeof(validDoubleOps[0]);
+static const char validSingleOps[] = "+-*%=<>!&|~^.(){}[];,"; int validSingleOpsSize = sizeof(validSingleOps)/sizeof(validSingleOps[0]);
+static const char* validKeywords[] = { "int", "float", "char", "if", "else", "for", "while", "break", "continue" }; int validKeywordsSize = sizeof(validKeywords)/sizeof(validKeywords[0]);
 int strInArray(const char* str, const char* arr[], int arrSize);
 int charInArray(char c, const char* arr, int arrSize);
 
@@ -71,6 +73,7 @@ enum TokenType {
     CHAR_LITERAL,
     STR_LITERAL,
     IDENTIFIER,
+    KEYWORD,
     OPERATOR,
     DELIMITER,
     EMPTY,
@@ -106,19 +109,35 @@ struct Token scanOpDelim(char** bpPtr, int* colPtr, int line) {
         case '+': case '-': case '*': case '%': case '=': case '<': case '>': case '!': case '&': case '|': case '^': case '~': {
             int startCol = *colPtr;
             char* start = *bpPtr;
-            
-            if (*(*(bpPtr)+1)) { // Check for two-char operators
+
+            if (**bpPtr && *(*(bpPtr)+1) && *(*(bpPtr)+2)) { // Check for three-char operators
+                char trio[4] = { **bpPtr, *((*bpPtr) + 1), *((*bpPtr) + 2), '\0' };
+                if (strInArray(trio, validTripleOps, validTripleOpsSize)) {
+                    (*bpPtr) += 3; (*colPtr) += 3;
+                    struct Token opToken = { .type = OPERATOR, .line = line, .col = startCol, .lexeme = start, .length = 3 };
+                    return opToken;
+                }
+            }
+
+            else if (**bpPtr && *(*(bpPtr)+1)) { // Check for two-char operators
                 char pair[3] = { **bpPtr, *((*bpPtr) + 1), '\0' }; // two-char operator check
-                if (strInArray(pair, validDoubleOps, 17)) {
+                if (strInArray(pair, validDoubleOps, validDoubleOpsSize)) {
                     (*bpPtr) += 2; (*colPtr) += 2;
                     struct Token opToken = { .type = OPERATOR, .line = line, .col = startCol, .lexeme = start, .length = 2 };
                     return opToken;
                 }
             } 
-            // Single-char operator
+
+            else if (**bpPtr) { // Check for single-char operator
             (*bpPtr)++; (*colPtr)++;
             struct Token opToken = { .type = OPERATOR, .line = line, .col = startCol, .lexeme = start, .length = 1 };
             return opToken;
+            }
+            else { // Emit empty token if **bpPtr points to \0. (Temporary, eventually will generate error.)
+                struct Token emptyToken = { .type = EMPTY, .line = line, .col = startCol, .lexeme = NULL, .length = 0};
+                return emptyToken;
+            }
+
         }
         case '(': case ')': case '{': case '}': case '[': case ']': case ';': case ',': {
             struct Token delToken = { .type = DELIMITER, .line = line, .col = *colPtr, .lexeme = *bpPtr, .length = 1 };
@@ -181,19 +200,13 @@ struct Token scanStrLiteral(char** bpPtr, int* colPtr, int line) {
 }
 
 struct Token scanFloatLiteral(char** bpPtr, char* start, int* colPtr, int startCol, int line) {
-    (*bpPtr)++; *(colPtr)++;
-    while (isdigit(**bpPtr)) { (*bpPtr)++; (*colPtr)++; }
+    (*bpPtr)++; *(colPtr)++; // Move past the . to avoid infinite loop
+    while (isdigit(**bpPtr)) { (*bpPtr)++; (*colPtr)++; } // While we are reading digits, add them to the token
 
     if (start != *bpPtr) {
         char* end = *bpPtr;
         int length = end - start;
         
-        struct Token floatToken = { .type = FLOAT_LITERAL, .line = line, .col = startCol, .lexeme = start, .length = length };
-        return floatToken;
-    }
-    else { // Technically valid but ugly float (3. = 3.0), emit float token begrudgingly
-        char* end = *bpPtr;
-        int length = end - start;
         struct Token floatToken = { .type = FLOAT_LITERAL, .line = line, .col = startCol, .lexeme = start, .length = length };
         return floatToken;
     }
@@ -374,7 +387,7 @@ int main() {
                 if (idToken.lexeme) emitToken(&idToken); // Emit identifier token
             }
 
-            else if (charInArray(*bp, validSingleOps, 20)) { // Operator or Delimiter
+            else if (charInArray(*bp, validSingleOps, validSingleOpsSize)) { // Operator or Delimiter
                 struct Token opDelimToken = scanOpDelim(&bp, &col, line);
                 if (opDelimToken.type != END_OF_FILE) emitToken(&opDelimToken); // Emit operator or delimiter token
 
