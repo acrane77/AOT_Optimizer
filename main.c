@@ -138,9 +138,10 @@ struct Token scanCharLiteral(char** bpPtr, int* colPtr, int line) {
 
     while ((**bpPtr) != '\'') {
         if ((**bpPtr) == '\0') {
-            struct Token emptyToken = { .type = EMPTY, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0};
+            struct Token emptyToken = { .type = EMPTY, .line = line, .col = startCol, .lexeme = NULL, .length = 0};
             return emptyToken;
         }
+        else if ((**bpPtr) == '\\') { (*bpPtr)++; (*colPtr)++; }
         (*bpPtr)++; (*colPtr)++;
     }
     (*bpPtr)++; (*colPtr)++; // Skip closing '
@@ -149,7 +150,7 @@ struct Token scanCharLiteral(char** bpPtr, int* colPtr, int line) {
         char* end = *bpPtr;
         int length = end - start;
 
-        struct Token charToken = { .type = CHAR_LITERAL, .line = line, .col = *colPtr, .lexeme = start, .length = length };
+        struct Token charToken = { .type = CHAR_LITERAL, .line = line, .col = startCol, .lexeme = start, .length = length };
         return charToken;
     }
 }
@@ -162,9 +163,10 @@ struct Token scanStrLiteral(char** bpPtr, int* colPtr, int line) {
 
     while ((**bpPtr) != '\"') {
         if ((**bpPtr) == '\0') {
-            struct Token emptyToken = { .type = EMPTY, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0};
+            struct Token emptyToken = { .type = EMPTY, .line = line, .col = startCol, .lexeme = NULL, .length = 0};
             return emptyToken;
         }
+        else if ((**bpPtr) == '\\') { (*bpPtr)++; (*colPtr)++; }
         (*bpPtr)++; (*colPtr)++;
     }
     (*bpPtr)++; (*colPtr)++; // Skip closing "
@@ -173,7 +175,7 @@ struct Token scanStrLiteral(char** bpPtr, int* colPtr, int line) {
         char* end = *bpPtr;
         int length = end - start;
         
-        struct Token strToken = { .type = STR_LITERAL, .line = line, .col = *colPtr, .lexeme = start, .length = length };
+        struct Token strToken = { .type = STR_LITERAL, .line = line, .col = startCol, .lexeme = start, .length = length };
         return strToken;
     }
 }
