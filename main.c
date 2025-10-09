@@ -67,6 +67,9 @@ int charInArray(char c, const char* arr, int arrSize);
 
 enum TokenType {
     INT_LITERAL,
+    FLOAT_LITERAL,
+    CHAR_LITERAL,
+    STR_LITERAL,
     IDENTIFIER,
     OPERATOR,
     DELIMITER,
@@ -128,11 +131,86 @@ struct Token scanOpDelim(char** bpPtr, int* colPtr, int line) {
     }
 }
 
+struct Token scanCharLiteral(char** bpPtr, int* colPtr, int line) {
+    char* start = *bpPtr;
+    int startCol = *colPtr;
+    (*bpPtr)++; (*colPtr)++; // Consume '
+
+    while ((**bpPtr) != '\'') {
+        if ((**bpPtr) == '\0') {
+            struct Token emptyToken = { .type = EMPTY, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0};
+            return emptyToken;
+        }
+        (*bpPtr)++; (*colPtr)++;
+    }
+    (*bpPtr)++; (*colPtr)++; // Skip closing '
+
+    if (start != *bpPtr) {
+        char* end = *bpPtr;
+        int length = end - start;
+
+        struct Token charToken = { .type = CHAR_LITERAL, .line = line, .col = *colPtr, .lexeme = start, .length = length };
+        return charToken;
+    }
+}
+
+struct Token scanStrLiteral(char** bpPtr, int* colPtr, int line) {
+    char* start = *bpPtr;
+    int startCol = *colPtr;
+
+    (*bpPtr)++; (*colPtr)++; // Consume "
+
+    while ((**bpPtr) != '\"') {
+        if ((**bpPtr) == '\0') {
+            struct Token emptyToken = { .type = EMPTY, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0};
+            return emptyToken;
+        }
+        (*bpPtr)++; (*colPtr)++;
+    }
+    (*bpPtr)++; (*colPtr)++; // Skip closing "
+
+    if (start != *bpPtr) {
+        char* end = *bpPtr;
+        int length = end - start;
+        
+        struct Token strToken = { .type = STR_LITERAL, .line = line, .col = *colPtr, .lexeme = start, .length = length };
+        return strToken;
+    }
+}
+
+struct Token scanFloatLiteral(char** bpPtr, char* start, int* colPtr, int startCol, int line) {
+    (*bpPtr)++; *(colPtr)++;
+    while (isdigit(**bpPtr)) { (*bpPtr)++; (*colPtr)++; }
+
+    if (start != *bpPtr) {
+        char* end = *bpPtr;
+        int length = end - start;
+        
+        struct Token floatToken = { .type = FLOAT_LITERAL, .line = line, .col = startCol, .lexeme = start, .length = length };
+        return floatToken;
+    }
+    else { // Technically valid but ugly float (3. = 3.0), emit float token begrudgingly
+        char* end = *bpPtr;
+        int length = end - start;
+        struct Token floatToken = { .type = FLOAT_LITERAL, .line = line, .col = startCol, .lexeme = start, .length = length };
+        return floatToken;
+    }
+
+    struct Token emptyToken = { .type = EMPTY, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0 };
+    return emptyToken; // Something weird happens (?)
+}
+
 struct Token scanIntLiteral(char** bpPtr, int* colPtr, int line) {
     char* start = *bpPtr;
     int startCol = *colPtr;
 
-    while (isdigit(**bpPtr)) { (*bpPtr)++; (*colPtr)++; } // Find end of integer literal
+    while (isdigit(**bpPtr) || **bpPtr == '.') { // Scan integer literal
+        if (**bpPtr == '.') { // If theres a dot, its a float
+            return scanFloatLiteral(bpPtr, start, colPtr, startCol, line);
+        }
+        (*bpPtr)++; (*colPtr)++; 
+    } 
+
     if (start != *bpPtr) {
         char* end = *bpPtr;
         int length = end - start;
@@ -153,6 +231,15 @@ struct Token scanIntLiteral(char** bpPtr, int* colPtr, int line) {
 void emitToken(struct Token* token) {
     if (token->type == INT_LITERAL) {
         printf("INT_LITERAL: %d\n", token->val);
+    }
+    else if (token->type == FLOAT_LITERAL) {
+        printf("FLOAT_LITERAL: %.*s\n", token->length, token->lexeme);
+    }
+    else if (token->type == STR_LITERAL) {
+        printf("STR_LITERAL: %.*s\n", token->length, token->lexeme);
+    }
+    else if (token->type == CHAR_LITERAL) {
+        printf("CHAR_LITERAL: %.*s\n", token->length, token->lexeme);
     }
     else if (token->type == IDENTIFIER) {
         printf("IDENTIFIER: %.*s\n", token->length, token->lexeme);
@@ -265,6 +352,19 @@ int main() {
             if (isdigit(*bp)) { // Integer literal
                 struct Token intToken = scanIntLiteral(&bp, &col, line);
                 if (intToken.lexeme) emitToken(&intToken); // Emit integer literal token
+            }
+            else if (*bp == '.' && *(bp + 1) && isdigit(*(bp + 1))) { // Fractional float e.g: .5 
+                struct Token floatToken = scanFloatLiteral(&bp, bp, &col, col, line);
+                if (floatToken.lexeme) emitToken(&floatToken);
+            }
+            else if (*bp == '\"') { // String literal
+                struct Token strToken = scanStrLiteral(&bp, &col, line);
+                if (strToken.lexeme) emitToken(&strToken);
+            }
+
+            else if (*bp == '\'') { // Char literal
+                struct Token charToken = scanCharLiteral(&bp, &col, line);
+                if (charToken.lexeme) emitToken(&charToken);
             }
 
             else if (isalpha(*bp) || *bp == '_') { // Any alphanumeric character or underscore
