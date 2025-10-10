@@ -6,7 +6,7 @@
  * Boolean operations (&&, ||, !, ==, !=, <, >, <=, >=)
  * Control flow (if, else, while, for (simple bounds), break, continue)
  * Simple (non-recursive) Functions (declaration, definition, calls)
- * Basic arrays and very restrictive pointers
+ * Simple multi-dimensional arrays & restrictive pointers
 */
 
 /* Constant Folding: 
@@ -59,6 +59,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+#define MAX_KEYWORD_LEN 8
 
 static const char* validTripleOps[] = { "<<=", ">>=" }; int validTripleOpsSize = sizeof(validTripleOps)/ sizeof(validTripleOps[0]);
 static const char* validDoubleOps[] = { "==", "<=", ">=", "!=", "&&", "||", "++", "--", "+=", "-=", "*=", "%=", "&=", "|=", "^=", "<<", ">>", "->" }; int validDoubleOpsSize = sizeof(validDoubleOps)/sizeof(validDoubleOps[0]);
@@ -72,7 +73,10 @@ enum TokenType {
     FLOAT_LITERAL,
     CHAR_LITERAL,
     STR_LITERAL,
+    BOOL_LITERAL,
     IDENTIFIER,
+    FUNCTION,
+    ARRAY,
     KEYWORD,
     OPERATOR,
     DELIMITER,
@@ -88,6 +92,34 @@ struct Token {
     int length;
 };
 
+struct Token scanArray(char** bpPtr, char* start, int* colPtr, int startCol,  int line) {
+    int bracketDepth = 1;
+    (*bpPtr)++; (*colPtr)++; // Consume bracket open
+
+    while (bracketDepth > 0) { 
+        if (**bpPtr == '\0'){
+            struct Token emptyToken = { .type = EMPTY, .line = line, .col = startCol, .lexeme = NULL, .length = 0 };
+            return emptyToken; // Temporary: emit empty token for EOF/no closing bracket.
+        }
+        else if (**bpPtr == '[') bracketDepth++;
+        else if (**bpPtr == ']') bracketDepth--;
+        (*bpPtr)++; (*colPtr)++; 
+    }
+
+    if (start != *bpPtr) {
+        char* end = *bpPtr;
+        int length = end - start;
+
+        if (**bpPtr == '[') { // Square/cube/n size matrix, recurse on bracket.
+            return scanArray(bpPtr, start, colPtr, startCol, line);
+        }
+        else {
+            struct Token arrayToken = { .type = ARRAY, .line = line, .col = startCol, .lexeme = start, .length = length };
+            return arrayToken;
+        }
+    }
+}
+
 struct Token scanIdentifier(char** bpPtr, int* colPtr, int line) {
     char* start = *bpPtr;
     int startCol = *colPtr;
@@ -97,6 +129,28 @@ struct Token scanIdentifier(char** bpPtr, int* colPtr, int line) {
     if (start != *bpPtr) {
         char* end = *bpPtr;
         int length = end - start;
+
+        if ((**bpPtr == '[') || (**bpPtr == ' ' && *(*bpPtr + 1) == '[')) { // Basic Array definition ( arr[] or arr [] )
+            if (**bpPtr == ' ') { (*bpPtr)++; (*colPtr)++; }
+            return scanArray(bpPtr, start, colPtr, startCol, line);
+        }
+        
+        if (length <= MAX_KEYWORD_LEN) { // To avoid non-constant array allocation, we know the max length is 8 (continue) so we don't need to check any strings longer.
+            char keyword[MAX_KEYWORD_LEN + 1]; // Max length of current string is now 8, so this is always safe.
+            memcpy(keyword, start, length); 
+            keyword[length] = '\0'; // null terminate string
+            if (!strcmp(keyword, "true") || !strcmp(keyword, "false")) { // Emit bool token
+                struct Token boolToken = { .type = BOOL_LITERAL, .line = line, .col = startCol, .lexeme = start, .length = length };
+                return boolToken;
+            }
+
+            else if (strInArray(keyword, validKeywords, validKeywordsSize)) { // If its in validKeywords, emit keyword token
+                struct Token keywordToken =  { .type = KEYWORD, .line = line, .col = startCol, .lexeme = start, .length = length };
+                return keywordToken;
+            }
+        }
+
+        // Else emit an idToken
         struct Token idToken = { .type = IDENTIFIER, .line = line, .col = startCol, .lexeme = start, .length = length};
         return idToken;
     }
@@ -110,7 +164,7 @@ struct Token scanOpDelim(char** bpPtr, int* colPtr, int line) {
             int startCol = *colPtr;
             char* start = *bpPtr;
 
-            if (**bpPtr && *(*(bpPtr)+1) && *(*(bpPtr)+2)) { // Check for three-char operators
+            if (**bpPtr && *(*bpPtr + 1) && *(*bpPtr + 2)) { // Check for three-char operators
                 char trio[4] = { **bpPtr, *((*bpPtr) + 1), *((*bpPtr) + 2), '\0' };
                 if (strInArray(trio, validTripleOps, validTripleOpsSize)) {
                     (*bpPtr) += 3; (*colPtr) += 3;
@@ -119,7 +173,7 @@ struct Token scanOpDelim(char** bpPtr, int* colPtr, int line) {
                 }
             }
 
-            else if (**bpPtr && *(*(bpPtr)+1)) { // Check for two-char operators
+            if (**bpPtr && *(*bpPtr + 1)) { // Check for two-char operators
                 char pair[3] = { **bpPtr, *((*bpPtr) + 1), '\0' }; // two-char operator check
                 if (strInArray(pair, validDoubleOps, validDoubleOpsSize)) {
                     (*bpPtr) += 2; (*colPtr) += 2;
@@ -128,10 +182,10 @@ struct Token scanOpDelim(char** bpPtr, int* colPtr, int line) {
                 }
             } 
 
-            else if (**bpPtr) { // Check for single-char operator
-            (*bpPtr)++; (*colPtr)++;
-            struct Token opToken = { .type = OPERATOR, .line = line, .col = startCol, .lexeme = start, .length = 1 };
-            return opToken;
+            if (**bpPtr) { // Check for single-char operator
+                (*bpPtr)++; (*colPtr)++;
+                struct Token opToken = { .type = OPERATOR, .line = line, .col = startCol, .lexeme = start, .length = 1 };
+                return opToken;
             }
             else { // Emit empty token if **bpPtr points to \0. (Temporary, eventually will generate error.)
                 struct Token emptyToken = { .type = EMPTY, .line = line, .col = startCol, .lexeme = NULL, .length = 0};
@@ -139,6 +193,7 @@ struct Token scanOpDelim(char** bpPtr, int* colPtr, int line) {
             }
 
         }
+        // Delimiter cases
         case '(': case ')': case '{': case '}': case '[': case ']': case ';': case ',': {
             struct Token delToken = { .type = DELIMITER, .line = line, .col = *colPtr, .lexeme = *bpPtr, .length = 1 };
             (*bpPtr)++; (*colPtr)++;
@@ -250,14 +305,26 @@ void emitToken(struct Token* token) {
     else if (token->type == FLOAT_LITERAL) {
         printf("FLOAT_LITERAL: %.*s\n", token->length, token->lexeme);
     }
-    else if (token->type == STR_LITERAL) {
-        printf("STR_LITERAL: %.*s\n", token->length, token->lexeme);
-    }
     else if (token->type == CHAR_LITERAL) {
         printf("CHAR_LITERAL: %.*s\n", token->length, token->lexeme);
     }
+    else if (token->type == STR_LITERAL) {
+        printf("STR_LITERAL: %.*s\n", token->length, token->lexeme);
+    }
+    else if (token->type == BOOL_LITERAL) {
+        printf("BOOL_LITERAL: %.*s\n", token->length, token->lexeme);
+    }
     else if (token->type == IDENTIFIER) {
         printf("IDENTIFIER: %.*s\n", token->length, token->lexeme);
+    }
+    else if (token->type == FUNCTION) {
+        printf("FUNCTION: %.*s\n", token->length, token->lexeme);
+    }
+    else if (token->type == ARRAY) {
+        printf("ARRAY: %.*s\n", token->length, token->lexeme);
+    }
+    else if (token->type == KEYWORD) {
+        printf("KEYWORD: %.*s\n", token->length, token->lexeme);
     }
     else if (token->type == OPERATOR) {
         printf("OPERATOR: %.*s\n", token->length, token->lexeme);
