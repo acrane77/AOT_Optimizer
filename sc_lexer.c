@@ -1,5 +1,5 @@
 /* 
- * S-C (simple C) Optimizer Supports:
+ * S-C (simple C) Lexer Supports:
  * Basic scalar types (int, float, char, str, bool)
  * Bitwise operations (&, |, ^, ~, <<, >>)
  * Arithmetic operations (+, -, *, /, %)
@@ -9,89 +9,22 @@
  * Simple multi-dimensional arrays & restrictive pointers
 */
 
-/* Constant Folding: 
- * Form of optimization where an expression can be evaluated by the compiler at compile time, instead of generating code to evaluate it at runtime.
- * ex: 5 + 4 * 5; is the same as x=25; so we can let the compiler evaluate it and just output the ASM for x = 25;
- * To implement, look for sub-trees in an AST tree where the leaves are integer literals. If there is a binary operation which has two integer literals leaves,
- * The compiler can evaluate the expression and replace the sub tree with a single integer literal node.
- * If there is a unary operation with an integer literal leaf child, then the compiler can also evaluate the expression and replace the sub tree with a single integer literal node.
- * Once we can do this for sub-trees, we can write a function to traverse the AST which looks for sub-trees to fold, the algorithm follows as:
- * 1. Try to fold and replace the left child, recursively
- * 2. Try to fold and replace the right child, recursively
- * If its a binary operation with two literals child leaves, fold that.
- * If its a unary operation with one literal child leaf, fold that.
-*/
-
-/* Dead-Code:
- * Code that is never executed or a variable that is never used.
- * Other optimizations may create dead code, so this should run last.
- * ex: y = 5; z = 6; x = y + 2; (z is never used, so it can be removed)
-*/
-
-/* Loop Optimizations
- * Loop-Invariant Code Motion: If result of a statement or expression does not change inside of a loop, and it has no externally visible side effects (!), you can hoist its 
- * computation outside of the loop.
- * ex: for (i=0; i<100; i++) { x = y; } can be optimized to x = y; for (i=0; i<100; i++) { }
- * Loop Strength Reduction: Replaces an expensive operation (multiply, divide) by cheap ones (add, subtract)
- * ex: for (i=0; i<100; i++) { x = i * 8; } can be optimized to: x = 0; for (i=0; i<100; i++) { x += 8; }
- * Induction Variable Elimination:
- * Loop Unrolling: Execute loop body multiple times per iteration, reducing overhead. Space tradeoff, program size increases.
- * ex: for (i=0;i<n;i++) { S } unrolled 4 times: for (i=0;i<n-3;i+=4) { S; S; S; S; } for (;i<n;i++) { S; }
-*/
-
-/* Function Inlining:
- * Replace a function call with the body of the function:
- * ex: int add(int a, int b) { return a + b; } int main() { int x = add(5, 6); } can be optimized to: int main() { int x = 5 + 6; }
- * Reduces function call overhead, enables further optimizations (constant folding, dead code elimination)
-*/
-
-/* Optimization Order:
- * 1. Function Inlining
- * 2. Constant Folding
- * 3. Dead Code Elimination
- * 4. Loop Invariant Code Motion
- * 5. Loop Strength Reduction
- * 6. Induction Variable Elimination
- * 7. Loop Unrolling
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+#include "sc_token.h"
 #define MAX_KEYWORD_LEN 8
 
 static const char* validTripleOps[] = { "<<=", ">>=" }; int validTripleOpsSize = sizeof(validTripleOps)/ sizeof(validTripleOps[0]);
 static const char* validDoubleOps[] = { "==", "<=", ">=", "!=", "&&", "||", "++", "--", "+=", "-=", "*=", "%=", "&=", "|=", "^=", "<<", ">>", "->" }; int validDoubleOpsSize = sizeof(validDoubleOps)/sizeof(validDoubleOps[0]);
 static const char validSingleOps[] = "+-*%=<>!&|~^.(){}[];,"; int validSingleOpsSize = sizeof(validSingleOps)/sizeof(validSingleOps[0]);
-static const char* validKeywords[] = { "int", "float", "char", "bool", "void", "if", "else", "for", "while", "break", "continue", "return" }; int validKeywordsSize = sizeof(validKeywords)/sizeof(validKeywords[0]);
+static const char* validKeywords[] = { "int", "float", "char", "bool", "void", "if", "else", "for", "while", "break", "continue", "return", "const", "static", "nullptr", "NULL" }; int validKeywordsSize = sizeof(validKeywords)/sizeof(validKeywords[0]);
+struct TokenBuffer tb;
+
 int strInArray(const char* str, const char* arr[], int arrSize);
 int charInArray(char c, const char* arr, int arrSize);
 void scanForTokens(char** bpPtr, int* colPtr, int line);
-
-enum TokenType {
-    INT_LITERAL,
-    FLOAT_LITERAL,
-    CHAR_LITERAL,
-    STR_LITERAL,
-    BOOL_LITERAL,
-    IDENTIFIER,
-    FUNCTION,
-    ARRAY,
-    KEYWORD,
-    OPERATOR,
-    DELIMITER,
-    EMPTY,
-    END_OF_FILE
-};
-
-struct Token {
-    int val;
-    enum TokenType type;
-    char* lexeme;
-    int line, col;
-    int length;
-};
 
 struct Token scanFunction(char** bpPtr, char* start, int* colPtr, int startCol, int line) {
     int bracketDepth = 1;
@@ -288,6 +221,8 @@ struct Token scanCharLiteral(char** bpPtr, int* colPtr, int line) {
         struct Token charToken = { .type = CHAR_LITERAL, .line = line, .col = startCol, .lexeme = start, .length = length };
         return charToken;
     }
+    struct Token emptyToken = { .type = EMPTY, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0 };
+    return emptyToken;
 }
 
 struct Token scanStrLiteral(char** bpPtr, int* colPtr, int line) {
@@ -313,6 +248,8 @@ struct Token scanStrLiteral(char** bpPtr, int* colPtr, int line) {
         struct Token strToken = { .type = STR_LITERAL, .line = line, .col = startCol, .lexeme = start, .length = length };
         return strToken;
     }
+    struct Token emptyToken = { .type = EMPTY, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0 };
+    return emptyToken;
 }
 
 struct Token scanFloatLiteral(char** bpPtr, char* start, int* colPtr, int startCol, int line) {
@@ -360,42 +297,16 @@ struct Token scanIntLiteral(char** bpPtr, int* colPtr, int line) {
 }
 
 void emitToken(struct Token* token) {
-    if (token->type == INT_LITERAL) {
-        printf("INT_LITERAL: %d\n", token->val);
+    if (tb.count == tb.capacity) {
+        tb.capacity *= 2;
+        struct Token* temp = realloc(tb.buf, tb.capacity * sizeof(struct Token));
+        if (!temp) {
+            fprintf(stderr, "Memory reallocation failed!\n");
+            exit(1);
+        }
+        tb.buf = temp;
     }
-    else if (token->type == FLOAT_LITERAL) {
-        printf("FLOAT_LITERAL: %.*s\n", token->length, token->lexeme);
-    }
-    else if (token->type == CHAR_LITERAL) {
-        printf("CHAR_LITERAL: %.*s\n", token->length, token->lexeme);
-    }
-    else if (token->type == STR_LITERAL) {
-        printf("STR_LITERAL: %.*s\n", token->length, token->lexeme);
-    }
-    else if (token->type == BOOL_LITERAL) {
-        printf("BOOL_LITERAL: %.*s\n", token->length, token->lexeme);
-    }
-    else if (token->type == IDENTIFIER) {
-        printf("IDENTIFIER: %.*s\n", token->length, token->lexeme);
-    }
-    else if (token->type == FUNCTION) {
-        printf("FUNCTION: %.*s\n", token->length, token->lexeme);
-    }
-    else if (token->type == ARRAY) {
-        printf("ARRAY: %.*s\n", token->length, token->lexeme);
-    }
-    else if (token->type == KEYWORD) {
-        printf("KEYWORD: %.*s\n", token->length, token->lexeme);
-    }
-    else if (token->type == OPERATOR) {
-        printf("OPERATOR: %.*s\n", token->length, token->lexeme);
-    }
-    else if (token->type == DELIMITER) {
-        printf("DELIMITER: %.*s\n", token->length, token->lexeme);
-    }
-    else if (token->type == END_OF_FILE) {
-        printf("END_OF_FILE\n");
-    }
+    tb.buf[tb.count++] = *token;
 }
 
 int strInArray(const char* str, const char* arr[], int arrSize) {
@@ -446,7 +357,7 @@ void scanForTokens(char** bpPtr, int* colPtr, int line) {
     else { (*bpPtr)++; (*colPtr)++; }
 }
 
-int main() {
+struct TokenBuffer lexFile() {
     char fileName[256];
     printf("Entire path to input file: \n");
 
@@ -454,7 +365,7 @@ int main() {
     FILE* file = fopen(fileName, "r");
     if (!file) {
         printf("Error opening file\n");
-        return -1;
+        return tb;
     }
     
     // Get length of file for buffer allocation
@@ -465,17 +376,29 @@ int main() {
     if (fileSize <= 0) {
         printf("Empty file or error reading file size\n");
         fclose(file);
-        return -1;
+        return tb;
     }
 
     // Allocate buffer for file contents
     char* buf = malloc(fileSize + 1);
+    tb.capacity = 128;
+    tb.buf = malloc(tb.capacity * sizeof(struct Token));
+
     if (!buf) {
         printf("Memory allocation failed\n");
         fclose(file);
-        return -1;
+        return tb;
     }
-
+    else if (!tb.buf) {
+        printf("Memory allocation failed\n");
+        fclose(file);
+        free(buf);
+        return tb;       
+    }
+    
+    tb.count = 0;
+    tb.src = buf;
+    
     size_t bytes = fread(buf, 1, fileSize, file);
     buf[bytes] = '\0'; // Null-terminate the buffer
     fclose(file);
@@ -501,7 +424,7 @@ int main() {
                 if (*bp == '\0') { // Unterminated comment
                     printf("Error: Unterminated comment\n");
                     free(buf);
-                    return -1;
+                    return tb;
                 }
                 while (*bp && *(bp+1) && !(*bp == '*'  && *(bp + 1) == '/')) { 
                     bp++; col++;  
@@ -531,6 +454,6 @@ int main() {
 
     struct Token eofToken = { .type = END_OF_FILE, .line = line, .col = col, .val = 0, .lexeme = NULL, .length = 0 };
     emitToken(&eofToken);
-    
-    free(buf);
+
+    return tb;
 }
