@@ -8,8 +8,6 @@
  * Simple (non-recursive) Functions (declaration, definition, calls)
  * Simple multi-dimensional arrays & restrictive pointers
 */
-
-#include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>

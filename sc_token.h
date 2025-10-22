@@ -1,3 +1,4 @@
+#include <stdio.h>
 enum TokenType {
     INT_LITERAL,
     FLOAT_LITERAL,
