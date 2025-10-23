@@ -52,6 +52,45 @@
 
 #include "sc_token.h"
 
+// Check if currently at end of token array
+int isAtEnd(struct Parser* parser) {
+    if (parser->pos >= parser->count) return 1;
+    else if (parser->tokens[parser->pos].type == END_OF_FILE) return 1;
+    return 0;
+}
+
+// Peek at current token
+struct Token* current(struct Parser* parser) {
+    return &parser->tokens[parser->pos];
+}
+
+// Consumes, advances and returns token
+struct Token* advance(struct Parser* parser) {
+    parser->pos++;
+    return &parser->tokens[parser->pos - 1];
+}
+
+// Peeks at next token in line
+struct Token* peekNext(struct Parser* parser) {
+    if (parser->pos + 1 >= parser->count) 
+        return &parser->tokens[parser->count - 1];
+    return &parser->tokens[parser->pos + 1];
+}
+
+// Main parser function
 int main() {
-    
+    char fileName[1024];
+    printf("Entire path to input file: \n");
+    scanf("%1024s", fileName); // Take file path
+
+    struct TokenBuffer tb = lexFile(fileName); // Call parser
+
+    if (tb.buf == NULL || tb.src == NULL) { // Ensure no memory errors
+        printf("Memory error detected, Exiting...");\
+        if (tb.src) free(tb.src); // src allocates before buf, so if src succeeds but buf fails, we must free src.
+        return -1;
+    }
+
+    free(tb.buf); // Free tokenbuffer buf and regular buf allocated in lexer (stored in .src and .buf)
+    free(tb.src);
 }

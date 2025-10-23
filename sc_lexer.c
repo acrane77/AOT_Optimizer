@@ -18,7 +18,7 @@ static const char* validTripleOps[] = { "<<=", ">>=" }; int validTripleOpsSize =
 static const char* validDoubleOps[] = { "==", "<=", ">=", "!=", "&&", "||", "++", "--", "+=", "-=", "*=", "%=", "&=", "|=", "^=", "<<", ">>", "->" }; int validDoubleOpsSize = sizeof(validDoubleOps)/sizeof(validDoubleOps[0]);
 static const char validSingleOps[] = "+-*%=<>!&|~^.(){}[];,"; int validSingleOpsSize = sizeof(validSingleOps)/sizeof(validSingleOps[0]);
 static const char* validKeywords[] = { "int", "float", "char", "bool", "void", "if", "else", "for", "while", "break", "continue", "return", "const", "static", "nullptr", "NULL" }; int validKeywordsSize = sizeof(validKeywords)/sizeof(validKeywords[0]);
-struct TokenBuffer tb;
+static struct TokenBuffer tb;
 
 int strInArray(const char* str, const char* arr[], int arrSize);
 int charInArray(char c, const char* arr, int arrSize);
@@ -355,11 +355,8 @@ void scanForTokens(char** bpPtr, int* colPtr, int line) {
     else { (*bpPtr)++; (*colPtr)++; }
 }
 
-struct TokenBuffer lexFile() {
-    char fileName[256];
-    printf("Entire path to input file: \n");
+struct TokenBuffer lexFile(char fileName[1024]) {
 
-    scanf("%255s", fileName);
     FILE* file = fopen(fileName, "r");
     if (!file) {
         printf("Error opening file\n");
@@ -374,9 +371,10 @@ struct TokenBuffer lexFile() {
     if (fileSize <= 0) {
         printf("Empty file or error reading file size\n");
         fclose(file);
+        tb.buf = NULL; tb.src = NULL;
         return tb;
     }
-
+    
     // Allocate buffer for file contents
     char* buf = malloc(fileSize + 1);
     tb.capacity = 128;
@@ -385,12 +383,14 @@ struct TokenBuffer lexFile() {
     if (!buf) {
         printf("Memory allocation failed\n");
         fclose(file);
+        tb.buf = NULL; tb.src = NULL;
         return tb;
     }
     else if (!tb.buf) {
         printf("Memory allocation failed\n");
         fclose(file);
         free(buf);
+        tb.buf = NULL; tb.src = NULL;
         return tb;       
     }
     
