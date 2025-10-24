@@ -86,7 +86,6 @@ void print_token(const struct Token* t) {
 // Check if currently at end of token array
 int isAtEnd(struct Parser* parser) {
     if (parser->pos >= parser->count) return 1;
-    else if (parser->tokens[parser->pos].type == END_OF_FILE) return 1;
     return 0;
 }
 
@@ -129,8 +128,7 @@ int main() {
     ps.count = tb.count;
 
     while (!isAtEnd(&ps)) {
-        print_token(current(&ps));
-        advance(&ps);
+        print_token(advance(&ps));
     }
 
     free(tb.buf); // Free tokenbuffer buf and regular buf allocated in lexer (stored in .src and .buf)
