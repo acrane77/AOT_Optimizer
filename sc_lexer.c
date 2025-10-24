@@ -252,13 +252,18 @@ struct Token scanStrLiteral(char** bpPtr, int* colPtr, int line) {
 
 struct Token scanFloatLiteral(char** bpPtr, char* start, int* colPtr, int startCol, int line) {
     (*bpPtr)++; *(colPtr)++; // Move past the . to avoid infinite loop
-    while (isdigit(**bpPtr)) { (*bpPtr)++; (*colPtr)++; } // While we are reading digits, add them to the token
+    while (isdigit(**bpPtr)) { // While we are reading digits, add them to the token
+        (*bpPtr)++; (*colPtr)++; 
+    } 
+    if (**bpPtr == 'f' || **bpPtr == 'F') { (*bpPtr)++; (*colPtr)++; } // Allow f suffix (5.0f is valid)
 
     if (start != *bpPtr) {
         char* end = *bpPtr;
         int length = end - start;
-        
-        struct Token floatToken = { .type = FLOAT_LITERAL, .line = line, .col = startCol, .lexeme = start, .length = length };
+        char* cur = start;
+
+        float tokenValue = strtof(start, NULL);
+        struct Token floatToken = { .type = FLOAT_LITERAL, .line = line, .val=tokenValue, .col = startCol, .lexeme = start, .length = length };
         return floatToken;
     }
 
@@ -287,7 +292,7 @@ struct Token scanIntLiteral(char** bpPtr, int* colPtr, int line) {
             tokenValue = tokenValue * 10 + (*cur - '0');
             cur++;
         }
-        struct Token intToken = { .type = INT_LITERAL, .line = line, .col = startCol, .val = tokenValue, .lexeme = start, .length = length };
+        struct Token intToken = { .type = INT_LITERAL, .line = line, .col = startCol, .val = (float)tokenValue, .lexeme = start, .length = length };
         return intToken;
     }
     struct Token emptyToken = { .type = EMPTY, .line = line, .col = *colPtr, .lexeme = NULL, .length = 0 };
@@ -355,7 +360,7 @@ void scanForTokens(char** bpPtr, int* colPtr, int line) {
     else { (*bpPtr)++; (*colPtr)++; }
 }
 
-struct TokenBuffer lexFile(char fileName[1024]) {
+struct TokenBuffer lexFile(char* fileName) {
 
     FILE* file = fopen(fileName, "r");
     if (!file) {

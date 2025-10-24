@@ -19,7 +19,7 @@ enum TokenType {
 
 // Token struct
 struct Token {
-    int val; // Value for integer/float tokens 
+    float val; // Value for integer/float tokens 
     enum TokenType type;
     char* lexeme; // Start of token
     int line, col; // line/col for error reporting
@@ -31,11 +31,11 @@ struct TokenBuffer {
     struct Token* buf; // Buffer of tokens
     size_t count; // Current number of tokens in buf
     size_t capacity; // Capacity of buf (default = 128)
-    const char* src; // For storing buf allocated in sc_lexer.c
+    char* src; // For storing buf allocated in sc_lexer.c
 };
 
 // Declare lexFile() so it can be seen across files
-struct TokenBuffer lexFile();
+struct TokenBuffer lexFile(char* fileName);
 
 // Parser struct
 struct Parser {

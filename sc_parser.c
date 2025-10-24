@@ -51,6 +51,37 @@
 */
 
 #include "sc_token.h"
+#include <stdlib.h>
+
+// ChatGPT functions to print tokens (for testing)
+const char* token_type_name(enum TokenType type) {
+    switch (type) {
+        case INT_LITERAL:    return "INT_LITERAL";
+        case FLOAT_LITERAL:  return "FLOAT_LITERAL";
+        case CHAR_LITERAL:   return "CHAR_LITERAL";
+        case STR_LITERAL:    return "STR_LITERAL";
+        case BOOL_LITERAL:   return "BOOL_LITERAL";
+        case IDENTIFIER:     return "IDENTIFIER";
+        case FUNCTION:       return "FUNCTION";
+        case ARRAY:          return "ARRAY";
+        case KEYWORD:        return "KEYWORD";
+        case OPERATOR:       return "OPERATOR";
+        case DELIMITER:      return "DELIMITER";
+        case EMPTY:          return "EMPTY";
+        case END_OF_FILE:    return "END_OF_FILE";
+        default:             return "UNKNOWN";
+    }
+}
+
+void print_token(const struct Token* t) {
+    printf("Token {\n");
+    printf("  type: %s\n", token_type_name(t->type));
+    printf("  lexeme: \"%.*s\"\n", t->length, t->lexeme);
+    printf("  val: %f\n", t->val);
+    printf("  line: %d, col: %d\n", t->line, t->col);
+    printf("  length: %d\n", t->length);
+    printf("}\n");
+}
 
 // Check if currently at end of token array
 int isAtEnd(struct Parser* parser) {
@@ -83,12 +114,23 @@ int main() {
     printf("Entire path to input file: \n");
     scanf("%1024s", fileName); // Take file path
 
-    struct TokenBuffer tb = lexFile(fileName); // Call parser
+    struct TokenBuffer tb = lexFile(fileName); // Call lexer and tokenize file
+    struct Parser ps;
 
     if (tb.buf == NULL || tb.src == NULL) { // Ensure no memory errors
-        printf("Memory error detected, Exiting...");\
+        printf("Memory error detected, Exiting...");
         if (tb.src) free(tb.src); // src allocates before buf, so if src succeeds but buf fails, we must free src.
         return -1;
+    }
+
+    ps.errCount = 0; ps.pos = 0;
+    ps.src = tb.src;
+    ps.tokens = tb.buf;
+    ps.count = tb.count;
+
+    while (!isAtEnd(&ps)) {
+        print_token(current(&ps));
+        advance(&ps);
     }
 
     free(tb.buf); // Free tokenbuffer buf and regular buf allocated in lexer (stored in .src and .buf)
