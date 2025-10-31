@@ -26,8 +26,10 @@ void scanForTokens(char** bpPtr, int* colPtr, int line);
 
 struct Token scanFunction(char** bpPtr, char* start, int* colPtr, int startCol, int line) {
     int bracketDepth = 1;
+    struct Token oBracketToken = scanOpDelim(bpPtr, colPtr, line);
+    emitToken(&oBracketToken);
+
     int isString = 0; int isChar = 0;
-    (*bpPtr)++; (*colPtr)++;
     char* argsStart = *bpPtr; char* argsEnd;
 
     while (bracketDepth > 0) {
@@ -129,6 +131,7 @@ struct Token scanIdentifier(char** bpPtr, int* colPtr, int line) {
 
         else if (((**bpPtr == '(') || (**bpPtr == ' ' && *(*bpPtr + 1) && *(*bpPtr + 1) == '(')) && !isKeyword) { // Basic function defintion
             if (**bpPtr == ' ') { (*bpPtr)++; (*colPtr)++; }
+            
             return scanFunction(bpPtr, start, colPtr, startCol, line);
         }
         else if (length <= MAX_KEYWORD_LEN && (!strcmp(keyword, "true") || !strcmp(keyword, "false"))) { // Emit bool token (use length check first to avoid strcmp'ing massive strings)
