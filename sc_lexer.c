@@ -14,7 +14,7 @@
 #include "sc_token.h"
 #define MAX_KEYWORD_LEN 8
 
-static const char* validTripleOps[] = { "<<=", ">>=" }; int validTripleOpsSize = sizeof(validTripleOps)/ sizeof(validTripleOps[0]);
+static const char* validTripleOps[] = { "<<=", ">>=" }; int validTripleOpsSize = sizeof(validTripleOps)/sizeof(validTripleOps[0]);
 static const char* validDoubleOps[] = { "==", "<=", ">=", "!=", "&&", "||", "++", "--", "+=", "-=", "*=", "%=", "&=", "|=", "^=", "<<", ">>", "->" }; int validDoubleOpsSize = sizeof(validDoubleOps)/sizeof(validDoubleOps[0]);
 static const char validSingleOps[] = "+-*%=<>!&|~^.(){}[];,"; int validSingleOpsSize = sizeof(validSingleOps)/sizeof(validSingleOps[0]);
 static const char* validKeywords[] = { "int", "float", "char", "bool", "void", "if", "else", "for", "while", "break", "continue", "return", "const", "static", "nullptr", "NULL" }; int validKeywordsSize = sizeof(validKeywords)/sizeof(validKeywords[0]);
@@ -23,11 +23,13 @@ static struct TokenBuffer tb;
 int strInArray(const char* str, const char* arr[], int arrSize);
 int charInArray(char c, const char* arr, int arrSize);
 void scanForTokens(char** bpPtr, int* colPtr, int line);
+void emitToken(struct Token* token);
 
 struct Token scanFunction(char** bpPtr, char* start, int* colPtr, int startCol, int line) {
     int bracketDepth = 1;
-    struct Token oBracketToken = scanOpDelim(bpPtr, colPtr, line);
+    struct Token oBracketToken = { .type = DELIMITER, .line = line, .col = startCol, .lexeme = *bpPtr, .length = 1 };
     emitToken(&oBracketToken);
+    (*bpPtr)++; (*colPtr)++;
 
     int isString = 0; int isChar = 0;
     char* argsStart = *bpPtr; char* argsEnd;
@@ -62,7 +64,7 @@ struct Token scanFunction(char** bpPtr, char* start, int* colPtr, int startCol, 
     struct Token functionToken = { .type = FUNCTION, .line = line, .col = startCol, .lexeme = start, .length = (*bpPtr + 1) - start};
 
     char* inner = argsStart;
-    int dummyCol = 0;
+    int dummyCol = *colPtr;
     while (inner <= argsEnd) {
         scanForTokens(&inner, &dummyCol, line);
     }

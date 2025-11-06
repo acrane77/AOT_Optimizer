@@ -113,16 +113,16 @@ void parseFunction(struct Parser* ps) {
 }
 
 void parseVar(struct Parser* ps) {
-    char* identifier = &ps->tokens[ps->pos].lexeme;
-    int length = &ps->tokens[ps->pos].length;
+    char* identifier = ps->tokens[ps->pos].lexeme;
+    int length = ps->tokens[ps->pos].length;
 
     
 }
 
 void parseKeyword(struct Parser* ps) {
     ps->pos++;
-    if (&ps->tokens[ps->pos].type == FUNCTION) { parseFunction(&ps); }
-    else if (&ps->tokens[ps->pos].type == IDENTIFIER) { parseVar(&ps); }
+    if (ps->tokens[ps->pos].type == FUNCTION) { parseFunction(ps); }
+    else if (ps->tokens[ps->pos].type == IDENTIFIER) { parseVar(ps); }
     else {
         ps->errCount++;
         // TODO: Report Error
@@ -131,8 +131,8 @@ void parseKeyword(struct Parser* ps) {
 
 void parseProgram(struct Parser* ps) {  
     while (ps->pos < ps->count) {
-        if (&ps->tokens[ps->pos + 1].type == KEYWORD) {  parseKeyword(&ps); }
-        else if (&ps->tokens[ps->pos + 1].type == FUNCTION) { parseFunction(&ps); }
+        if (ps->tokens[ps->pos + 1].type == KEYWORD) {  parseKeyword(ps); }
+        else if (ps->tokens[ps->pos + 1].type == FUNCTION) { parseFunction(ps); }
         ps->pos++;
     }
 }
@@ -157,7 +157,11 @@ int main() {
     ps.tokens = tb.buf;
     ps.count = tb.count;
 
-    parseProgram(&ps);
+    while (ps.pos < ps.count) {
+        print_token(&ps.tokens[ps.pos]);
+        ps.pos++;
+    }
+    //parseProgram(&ps);
 
     free(tb.buf); // Free tokenbuffer buf and regular buf allocated in lexer (stored in .src and .buf)
     free(tb.src);
