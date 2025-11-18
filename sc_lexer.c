@@ -27,7 +27,7 @@ void emitToken(struct Token* token);
 
 struct Token scanFunction(char** bpPtr, char* start, int* colPtr, int startCol, int line) {
     int bracketDepth = 1;
-    struct Token oBracketToken = { .type = DELIMITER, .line = line, .col = startCol, .lexeme = *bpPtr, .length = 1 };
+    struct Token oBracketToken = { .type = FUNCTION, .line = line, .col = startCol, .lexeme = *bpPtr, .length = 1 };
     emitToken(&oBracketToken);
     (*bpPtr)++; (*colPtr)++;
 

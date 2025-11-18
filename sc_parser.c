@@ -52,6 +52,8 @@
 
 #include "sc_token.h"
 #include <stdlib.h>
+#include <string.h>
+void parseBlock(struct Parser* ps);
 
 // ChatGPT functions to print tokens (for testing)
 const char* token_type_name(enum TokenType type) {
@@ -95,9 +97,8 @@ struct Token* current(struct Parser* parser) {
 }
 
 // Consumes, advances and returns token
-struct Token* advance(struct Parser* parser) {
+void advance(struct Parser* parser) {
     parser->pos++;
-    return &parser->tokens[parser->pos - 1];
 }
 
 // Peeks at next token in line
@@ -107,22 +108,61 @@ struct Token* peekNext(struct Parser* parser) {
     return &parser->tokens[parser->pos + 1];
 }
 
-void parseFunction(struct Parser* ps) {
-    ps->pos++;
+void parseStatement(struct Parser* ps) {
+    if (current(ps)->length == 1 && current(ps)->type == DELIMITER && *current(ps)->lexeme == '{') { parseBlock(ps); }
+    else advance(ps);
+}
 
+void parseBlock(struct Parser* ps) {
+    advance(ps);
+    while(!isAtEnd(ps) && !(current(ps)->type == DELIMITER && current(ps)->length == 1 && current(ps)->lexeme[0] == '}')) {
+        if (current(ps)->type == KEYWORD) { parseKeyword(ps); }
+        else { parseStatement(ps); }
+    }
+    if (isAtEnd(ps)) {
+        ps->errCount++; // TODO error, unterminated }
+    }
+    else advance(ps);
+}
+
+void parseExpression(struct Parser* ps) {
+    while(!isAtEnd(ps) && !(current(ps)->type == DELIMITER && current(ps)->length == 1 && (current(ps)->lexeme[0] == ';' || current(ps)->lexeme[0] == ')'))) {
+        enum TokenType type = current(ps)->type;
+        if (type == IDENTIFIER || type == INT_LITERAL || type == STR_LITERAL || type == BOOL_LITERAL || type == CHAR_LITERAL || type == FLOAT_LITERAL) {
+            advance(ps); // TODO
+        }
+        else if (type == OPERATOR) {
+            advance(ps); // TODO
+        }
+        else break;
+    }
+    advance(ps); // Consume ; TODO should this be done?
+}
+
+void parseFunction(struct Parser* ps) {
+    advance(ps);
+    if (current(ps)->length == 1 && current(ps)->type == DELIMITER && *current(ps)->lexeme == '{') { parseBlock(ps); } // definition
+    else if (current(ps)->length == 1 && current(ps)->type == DELIMITER && *current(ps)->lexeme == ';') { advance(ps); } // declaration
+    else { ps->errCount++; } // TODO
 }
 
 void parseVar(struct Parser* ps) {
-    char* identifier = ps->tokens[ps->pos].lexeme;
-    int length = ps->tokens[ps->pos].length;
-
-    
+    advance(ps);
+    if (current(ps)->length == 1 && current(ps)->type == DELIMITER && *current(ps)->lexeme == ';') { advance(ps); } // Declaration
+    else if (current(ps)->length == 1 && current(ps)->type == OPERATOR && *current(ps)->lexeme == '=') { parseExpression(ps); } // Definition
+    else if (true) {} // TODO: arrays or other declarations/definitions
 }
 
 void parseKeyword(struct Parser* ps) {
-    ps->pos++;
-    if (ps->tokens[ps->pos].type == FUNCTION) { parseFunction(ps); }
-    else if (ps->tokens[ps->pos].type == IDENTIFIER) { parseVar(ps); }
+    if (current(ps)->length == 6 && strncmp(current(ps)->lexeme, "return", 6) == 0) {
+        advance(ps); 
+        if (current(ps)->length == 1 && *current(ps)->lexeme == ';') advance(ps); // return;
+        else parseExpression(ps); // return something;
+        return; // TODO maybe use switch here instead for continue/while/if ?
+    }
+    else advance(ps);
+    if (current(ps)->type == FUNCTION) { parseFunction(ps); } // ( -> function
+    else if (current(ps)->type == IDENTIFIER) { parseVar(ps); } // identifier -> variable declaration/definition
     else {
         ps->errCount++;
         // TODO: Report Error
@@ -130,10 +170,10 @@ void parseKeyword(struct Parser* ps) {
 }
 
 void parseProgram(struct Parser* ps) {  
-    while (ps->pos < ps->count) {
-        if (ps->tokens[ps->pos + 1].type == KEYWORD) {  parseKeyword(ps); }
-        else if (ps->tokens[ps->pos + 1].type == FUNCTION) { parseFunction(ps); }
-        ps->pos++;
+    while (!isAtEnd(ps)) {
+        if (current(ps)->type == KEYWORD) {  parseKeyword(ps); } // int, float, etc -> func/var declaration/definition
+        else if (current(ps)->type == FUNCTION) { parseFunction(ps); } // function -> function call
+        else advance(ps); // dummy call, parseProgram should either call something or error.
     }
 }
 
