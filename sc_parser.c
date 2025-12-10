@@ -154,13 +154,43 @@ void parseVar(struct Parser* ps) {
 }
 
 void parseKeyword(struct Parser* ps) {
-    if (current(ps)->length == 6 && strncmp(current(ps)->lexeme, "return", 6) == 0) {
+    int length = current(ps)->length;
+
+    if (length == 6 && !strncmp(current(ps)->lexeme, "return", 6)) {
         advance(ps); 
         if (current(ps)->length == 1 && *current(ps)->lexeme == ';') advance(ps); // return;
         else parseExpression(ps); // return something;
         return; // TODO maybe use switch here instead for continue/while/if ?
     }
-    else advance(ps);
+    else if (length == 2 && !strncmp(current(ps)->lexeme, "if", 2)) {
+        advance(ps); // TODO parse IF block
+        return;
+    }
+    else if (length == 4 && !strncmp(current(ps)->lexeme, "else", 4)) {
+        advance(ps); 
+        if (current(ps)->lexeme == 2 && !strncmp(current(ps)->lexeme, "if", 2)) {
+            // TODO Parse ELSE IF
+        }
+        // TODO parse ELSE block
+        return;
+    }
+    else if (length == 5 && !strncmp(current(ps)->lexeme, "while", 4)) {
+        // TODO parse WHILE block
+        return;
+    }
+    else if (length == 3 && !strncmp(current(ps)->lexeme, "for", 3)) {
+        // TODO parse FOR block
+        return;
+    }
+    else if (length == 5 && !strncmp(current(ps)->lexeme, "break", 5)) {
+        // TODO parse break block
+        return;
+    }
+    else if (length == 8 && !strncmp(current(ps)->lexeme, "continue", 8)) {
+        // TODO parse continue block
+        return;
+    }
+    
     if (current(ps)->type == FUNCTION) { parseFunction(ps); } // ( -> function
     else if (current(ps)->type == IDENTIFIER) { parseVar(ps); } // identifier -> variable declaration/definition
     else {
